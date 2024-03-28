@@ -9,3 +9,4 @@ vaderSentiment
 textblob
 flask
 plotly
+beautifulsoup4
