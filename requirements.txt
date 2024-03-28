@@ -1,0 +1,11 @@
+requests
+aiohttp
+pandas
+tweepy
+praw
+ccxt
+transformers
+vaderSentiment
+textblob
+flask
+plotly
