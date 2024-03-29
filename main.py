@@ -4,7 +4,7 @@
 from dotenv import load_dotenv
 import os
 import subprocess
-from get_stock_price import StockPriceFetcher
+from marketstack import StockPriceFetcher
 load_dotenv()
 
 #----- Stock Price Fetcher ------
