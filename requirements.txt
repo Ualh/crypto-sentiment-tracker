@@ -11,3 +11,8 @@ flask
 plotly
 beautifulsoup4
 datetime
+pygooglenews
+torch 
+torchvision 
+torchaudio
+transformers

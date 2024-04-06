@@ -1,6 +1,7 @@
 #news_api.py
 import os
 import requests
+import pandas as pd
 import json
 from dotenv import load_dotenv
 load_dotenv()
@@ -29,7 +30,13 @@ class NewsAPI:
         params['apiKey'] = self.api_key
         try:
             response = requests.get(url, params=params)
-            response.raise_for_status()  # Raises a HTTPError if the response code was not 200
+            # Check for rate limit exceeded or other errors
+            if response.status_code == 429:
+                print(f"Error: Rate limit exceeded for NewsAPI :(. \n{response.status_code}: {response.reason} ")
+                return None
+            elif response.status_code != 200:
+                print(f"HTTP Error {response.status_code}: {response.reason}")
+                return None
             return response.json()  # Directly return the JSON response
         except requests.exceptions.RequestException as e:
             print(f"Request error: {e}")
@@ -61,9 +68,13 @@ class NewsAPI:
         response = self.make_request("everything", **params)
         if response and response.get('status') == 'ok':
             articles = response.get('articles', [])
-            headlines = [f'Headline from: {article["source"]["name"]}\n{article["title"]}\n{article["description"]}\n{article["url"]}\n' for article in articles[:3]]
-            print(f'Found {response['totalResults']} articles')
-            return headlines
+            # Create a list of dictionaries with the desired data
+            news_list = [{'date': article['publishedAt'], 'headline': article['title'], 'description': article['description']} for article in articles]
+            # Convert the list into a DataFrame
+            news_df = pd.DataFrame(news_list, columns=['date', 'headline', 'description'])
+            print(f'Found {len(articles)} articles for topic: {topic}')
+            return news_df
         else:
             print(f"No data or error occurred for topic: {topic}")
-            return []
+            # Return an empty DataFrame if there's an error or no data
+            return pd.DataFrame(columns=['date', 'headline', 'description'])
