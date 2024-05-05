@@ -28,12 +28,31 @@ class CryptoDataFetcher:
         self.default_limit = default_limit
         self.default_time_period = default_time_period
 
+    def send_request(self, url, params):
+        """
+        Sends a GET request to the specified URL with the given parameters.
+
+        Args:
+            url (str): The URL to send the request to.
+            params (dict): Dictionary containing query parameters.
+
+        Returns:
+            Response: The response object.
+        """
+        response = requests.get(url, headers=self.headers, params=params)
+        print(f"Request URL: {response.url}")
+        print(f"Status Code: {response.status_code}")
+        if response.status_code != 200:
+            print(f"Response: {response.text}")
+        return response
+
     def get_coin_uuids(self, tags=None, limit=None):
         """
         Fetches UUIDs for coins based on specified tags and limit.
         
         Args:
-        - tags (str): Tags to filter coins, such as 'meme', 'defi', 'nft', 'stablecoin', 'privacy', etc.
+        - 
+        - tags (str): Tags to filter coins, such as defi, stablecoin, nft, dex, exchange, staking, dao, meme, privacy...
         - limit (int): The number of coin entries to fetch. Maximum often depends on your API plan.
 
         Returns:
@@ -59,7 +78,7 @@ class CryptoDataFetcher:
         
         Args:
         - uuid (str): The UUID of the coin.
-        - time_period (str): Time period for the history data. Options include '24h', '7d', '30d', '3m', '1y', etc.
+        - time_period (str): Timeperiod where the change and history are based on Default value: 24h Allowed values: 1h 3h 12h 24h 7d 30d 3m 1y 3y 5y
 
         Returns:
         - list: A list of historical data entries.
@@ -68,12 +87,16 @@ class CryptoDataFetcher:
             time_period = self.default_time_period
         url = f"{self.base_url}/coin/{uuid}/history"
         querystring = {"timePeriod": time_period}
-        response = requests.get(url, headers=self.headers, params=querystring)
-        data = response.json()
-        if data['status'] == 'success':
-            return data['data']['history']
-        else:
-            print(f"Failed to fetch history for UUID: {uuid}")
+        try:
+            response = self.send_request(url, querystring)
+            data = response.json()
+            if data['status'] == 'success':
+                return data['data']['history']
+            else:
+                print(f"Failed to fetch history for UUID: {uuid}")
+                return []
+        except Exception as e:
+            print(f"Error fetching history data: {e}")
             return []
 
     def fetch_all_history(self, tags=None, limit=None, time_period=None):
@@ -91,15 +114,24 @@ class CryptoDataFetcher:
         coins = self.get_coin_uuids(tags, limit)
         all_data = []
         for name, uuid in coins.items():
-            print(f"Fetching historical data for {name}...")
+            print(f"Fetching historical data for {name} with UUID {uuid}...")
             history = self.get_coin_history(uuid, time_period)
-            for entry in history:
-                all_data.append({
-                    'coin': name,
-                    'timestamp': entry['timestamp'],
-                    'price': float(entry['price'])
-                })
+            if history:
+                for entry in history:
+                    try:
+                        if entry['price'] is not None:
+                            price = float(entry['price'])
+                            all_data.append({
+                                'coin': name,
+                                'timestamp': entry['timestamp'],
+                                'price': price
+                            })
+                        else:
+                            print(f"Skipping entry with None price: {entry}")
+                    except Exception as e:
+                        print(f"Error processing entry {entry}: {e}")
         return pd.DataFrame(all_data)
+
 
     def write_to_csv(self, data, filename=f'data/history.csv'):
         """
@@ -113,57 +145,7 @@ class CryptoDataFetcher:
         """
         with open(filename, 'w', newline='') as file:
             writer = csv.writer(file)
-            writer.writerow(['Coin Name', 'Timestamp', 'Price'])
+            writer.writerow(['coin name', 'timestamp', 'price'])
             for _, row in data.iterrows():
                 writer.writerow([row['coin'], row['timestamp'], row['price']])
         print(f"Data has been written to {filename}")
-
-    def plot_aggregated_prices(self, data, sentiment_data=None, window_size=7):
-        """
-        Aggregates, smooths, and plots normalized historical price data, along with sentiment data if provided.
-
-        Args:
-        - data (DataFrame): DataFrame containing at least 'timestamp' and 'price' columns.
-        - sentiment_data (DataFrame): Optional DataFrame containing 'date' and 'sentiment' columns.
-        - window_size (int): Window size for smoothing the sentiment data.
-        """
-        data.columns = data.columns.str.lower()
-        data['timestamp'] = pd.to_datetime(data['timestamp'], unit='s')
-        data.set_index('timestamp', inplace=True)
-
-        # Normalize the price data
-        scaler = MinMaxScaler()
-        data['normalized_price'] = scaler.fit_transform(data[['price']])
-        aggregated_data = data.groupby(data.index)['normalized_price'].mean().reset_index()
-
-        fig, ax1 = plt.subplots(figsize=(12, 6))
-        colors = plt.cm.viridis(np.linspace(0, 1, 10))
-
-        # Plot price data
-        ax1.plot(aggregated_data['timestamp'], aggregated_data['normalized_price'], label='Normalized Average Price', color=colors[0])
-        ax1.set_title('Normalized Price and Sentiment Over Time')
-        ax1.set_xlabel('Date')
-        ax1.set_ylabel('Normalized Price (0 to 1 Scale)', color=colors[0])
-        ax1.tick_params(axis='y', labelcolor=colors[0])
-
-        if sentiment_data is not None:
-            sentiment_data.columns = sentiment_data.columns.str.lower()
-            sentiment_data['date'] = pd.to_datetime(sentiment_data['date'])
-            sentiment_data.set_index('date', inplace=True)
-            sentiment_data.sort_index(inplace=True)
-
-            # Apply smoothing
-            sentiment_data['smoothed_sentiment'] = sentiment_data['sentiment'].rolling(window=window_size, min_periods=1).mean()
-
-            # Plot smoothed sentiment data
-            ax2 = ax1.twinx()
-            ax2.plot(sentiment_data.index, sentiment_data['smoothed_sentiment'], label='Smoothed Sentiment', color=colors[5], linestyle='--')
-            ax2.set_ylabel('Sentiment (0 to 1 Scale)', color=colors[5])
-            ax2.tick_params(axis='y', labelcolor=colors[5])
-
-        fig.legend(loc='upper right', bbox_to_anchor=(1, 1), bbox_transform=ax1.transAxes)
-        plt.grid(True)
-        plt.show()
-
-        return fig
-

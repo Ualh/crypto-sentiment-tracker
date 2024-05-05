@@ -17,3 +17,5 @@ torchaudio
 transformers
 matplotlib
 scikit-learn
+seaborn
+statsmodels

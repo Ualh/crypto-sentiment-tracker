@@ -1,74 +1,130 @@
-from html import unescape
-import re
 import pandas as pd
+from datetime import datetime
+import html
+import re
 import requests
+from bs4 import BeautifulSoup
+from handlers import DataHandler
+import time
 
-class CryptoNewsSentiment:
+class SeekingAlphaNewsAPI:
     def __init__(self, api_key):
         self.api_key = api_key
-        self.base_url = "https://seeking-alpha.p.rapidapi.com/news/v2/list"
+        self.base_url = "https://seeking-alpha.p.rapidapi.com"
         self.headers = {
-            "X-RapidAPI-Key": self.api_key,
-            "X-RapidAPI-Host": "seeking-alpha.p.rapidapi.com"
+            'X-RapidAPI-Key': self.api_key,
+            'X-RapidAPI-Host': 'seeking-alpha.p.rapidapi.com'
         }
-        
-    def clean_html(self, raw_html):
-        """
-        Utility function to clean HTML tags from a string.
-        """
-        cleanr = re.compile('<.*?>')
-        cleantext = re.sub(cleanr, '', raw_html)
-        return unescape(cleantext)
-        
-    def get_crypto_news(self, since=None, until=None, size=40, number=1):
-        """
-        Fetches crypto market news.
 
+    def fetch_news(self, category, since=None, until=None, size=20, number=1):
+        """
+        Fetches news articles from Seeking Alpha based on category and optional time limits.
+        
         Parameters:
-        - since: Unix timestamp for the start of the date range.
-        - until: Unix timestamp for the end of the date range.
-        - size: Number of items per response.
-        - number: Page index for paging.
+            category (str): The news category to fetch. Categories include:
+                - market-news::all
+                - market-news::top-news
+                - market-news::on-the-move
+                - market-news::market-pulse
+                - market-news::notable-calls
+                - market-news::buybacks
+                - market-news::commodities
+                - market-news::crypto
+                - market-news::issuance
+                - market-news::dividend-stocks
+                - market-news::dividend-funds
+                - market-news::earnings
+                - earnings::earnings-news
+                - market-news::global
+                - market-news::guidance
+                - market-news::ipos
+                - market-news::spacs
+                - market-news::politics
+                - market-news::m-a
+                - market-news::us-economy
+                - market-news::consumer
+                - market-news::energy
+                - market-news::financials
+                - market-news::healthcare
+                - market-news::mlps
+                - market-news::reits
+                - market-news::technology
+            since (int, optional): Unix timestamp for the start of the news period.
+            until (int, optional): Unix timestamp for the end of the news period.
+            size (int, optional): The number of items per response (max 40).
+            number (int, optional): Page index for pagination purposes.
 
-        Returns: A DataFrame containing cleaned crypto market news.
+        Returns:
+            A JSON response containing the news data if the request is successful; otherwise, None.
         """
-        querystring = {
-            "category": "market-news::crypto",
-            "size": str(size),
-            "number": str(number)
+        params = {
+            'category': category,
+            'size': size,
+            'number': number
         }
-        
-        if since is not None:
-            querystring["since"] = since
-        if until is not None:
-            querystring["until"] = until
+        if since:
+            params['since'] = since
+        if until:
+            params['until'] = until
             
-        response = requests.get(self.base_url, headers=self.headers, params=querystring)
-        
+        response = requests.get(f"{self.base_url}/news/v2/list", headers=self.headers, params=params)
         if response.status_code == 200:
-            try:
-                news_data = response.json().get('data', [])
-                
-                news_list = []
-                for item in news_data:
-                    publish_date = pd.to_datetime(item['attributes']['publishOn']).strftime('%Y-%m-%d %H:%M:%S')
-                    title = item['attributes']['title']
-                    content = self.clean_html(item['attributes']['content'])
-                    news_list.append({'date': publish_date, 'headline': title, 'description': content})
-                
-                news_df = pd.DataFrame(news_list, columns=['date', 'headline', 'description'])
-                return news_df
-            except KeyError as e:
-                print(f"Key error: {e}")
+            return response.json().get('data', [])
         else:
-            # Check if the status code indicates a rate limit has been exceeded
-            if response.status_code == 429:
-                print(f"Error: Rate limit exceeded for Seek Alpha API :(. \n{response.status_code}: {response.reason} ")
-            # You can add more elif statements here for other specific status codes if needed
-            else:
-                # Generic error message for other types of errors
-                print(f"Failed to fetch news. Status code: {response.status_code}, Reason: {response.reason}")
+            print("Failed to fetch data:", response.status_code)
+            return []
 
+    def format_news_data(self, news_items):
+        """Transforms news data into a pandas DataFrame, parsing dates and cleaning HTML content."""
+        data = []
+        for item in news_items:
+            attributes = item.get('attributes', {})
+            title = html.unescape(attributes.get('title', 'No title provided'))
+
+            publish_on = attributes.get('publishOn', '')
+            try:
+                publish_date = datetime.fromisoformat(publish_on[:-6])  # Remove timezone info for simplicity
+            except ValueError:
+                publish_date = datetime.now()  # Default to current date/time if parsing fails
+
+            content = html.unescape(attributes.get('content', 'No description provided'))
+            content = self.clean_description(content)  # Clean HTML and reduce clutter
+            
+            data.append({
+                'date': publish_date.strftime('%Y-%m-%d %H:%M:%S'),
+                'headline': title,
+                'description': content
+            })
+
+        return pd.DataFrame(data)
+
+    def clean_description(self, text):
+        """Cleans HTML tags and filters out invisible content or other unwanted parts."""
+        soup = BeautifulSoup(text, 'html.parser')
+        text = soup.get_text(separator=" ")  # Use space as separator to avoid words sticking together
         
-        # Return an empty DataFrame if the request failed or parsing was unsuccessful
-        return pd.DataFrame(columns=['date', 'headline', 'description'])
+        # Optional: Remove common unwanted patterns
+        text = re.sub(r'Click here to read more', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\s+', ' ', text).strip()  # Normalize whitespace
+
+        return text
+    
+    def fetch_news_by_days(self, days, category):
+            dh = DataHandler()
+            df_daily_news = pd.DataFrame()
+
+            for i in range(days):
+                start = dh.get_date_dt(i + 1)  # Start of day
+                end = dh.get_date_dt(i)  # End of day
+                initial_unix_s = dh.convert_to_unix_seconds(start)
+                final_unix_s = dh.convert_to_unix_seconds(end)
+
+                news_data = self.fetch_news(category=f'market-news::{category}', since=initial_unix_s, until=final_unix_s, size=40)
+                time.sleep(1)
+                if news_data:
+                    formatted_data = self.format_news_data(news_data)
+                    df_daily_news = pd.concat([df_daily_news, formatted_data], ignore_index=True)
+                else:
+                    print(f"No news found for the date range starting {dh.get_date_str(i + 1)} to {dh.get_date_str(i)}")
+
+            return df_daily_news
