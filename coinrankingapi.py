@@ -40,12 +40,10 @@ class CryptoDataFetcher:
             Response: The response object.
         """
         response = requests.get(url, headers=self.headers, params=params)
-        print(f"Request URL: {response.url}")
-        print(f"Status Code: {response.status_code}")
         if response.status_code != 200:
             print(f"Response: {response.text}")
         return response
-
+    
     def get_coin_uuids(self, tags=None, limit=None):
         """
         Fetches UUIDs for coins based on specified tags and limit.

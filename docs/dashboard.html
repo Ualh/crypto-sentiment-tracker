@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="" />
+    <meta name="author" content="" />
+    <title>Crypto Sentiment Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/style.min.css" rel="stylesheet" />
+    <link href="static/css/styles.css" rel="stylesheet" />
+    <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
+    <!-- Include DataTables CSS -->
+    <link href="https://cdn.datatables.net/1.12.1/css/jquery.dataTables.min.css" rel="stylesheet">
+    <!-- Include jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Include DataTables JS -->
+    <script src="https://cdn.datatables.net/1.12.1/js/jquery.dataTables.min.js"></script>
+    <style>
+        .disclaimer-banner {
+            background-color: #ffcc00;
+            color: #333;
+            text-align: center;
+            padding: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="sb-nav-fixed">
+    <nav class="sb-topnav navbar navbar-expand navbar-dark bg-dark">
+        <a class="navbar-brand ps-3" href="index.html">Crypto Sentiment Dashboard</a>
+        <button class="btn btn-link btn-sm order-1 order-lg-0 me-4 me-lg-0" id="sidebarToggle" href="#!"><i class="fas fa-bars"></i></button>
+        <script defer src="https://www.livecoinwatch.com/static/lcw-widget.js"></script> <div class="livecoinwatch-widget-5" lcw-base="USD" lcw-color-tx="#999999" lcw-marquee-1="coins" lcw-marquee-2="movers" lcw-marquee-items="10" ></div>
+    </nav>
+    <div id="layoutSidenav">
+        <div id="layoutSidenav_nav">
+            <nav class="sb-sidenav accordion sb-sidenav-dark" id="sidenavAccordion">
+                <div class="sb-sidenav-menu">
+                    <div class="nav">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                            Dashboard
+                        </a>
+                        <a class="nav-link" href="{{ url_for('extra_features') }}">
+                            <div class="sb-nav-link-icon"><i class="fas fa-cogs"></i></div>
+                            Extra Features
+                        </a>
+                    </div>
+                </div>
+            </nav>
+        </div>
+        <div id="layoutSidenav_content">
+            <main>
+                <div class="container-fluid px-4">
+                    <h1 class="mt-4">Analysis Results</h1>
+                    <ol class="breadcrumb mb=4">
+                        <li class="breadcrumb-item active">Dashboard</li>
+                    </ol>
+                    <p>Welcome to the Analysis Results page. Here you can view detailed results of the sentiment analysis and price prediction models.</p>
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="fas fa-chart-area me-1"></i>
+                            Plot
+                        </div>
+                        <div class="card-body " style="overflow-x: auto; width: 70%; text-align: center;">
+                            <div>{{ plot | safe }}</div>
+                        </div>
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="fas fa-chart-area me-1"></i>
+                            Analysis Results
+                        </div>
+                        <div class="card-body">
+                            <p>Select a lag to see detailed analysis results for that time period. A lag represents the number of days between the sentiment data and the predicted price change.</p>
+                            {% if analysis_results and selected_lag_index != -1 %}
+                            <form action="/dashboard" method="POST">
+                                <input type="hidden" name="days_back" value="{{ days_back }}">
+                                <input type="hidden" name="category" value="{{ category }}">
+                                <input type="hidden" name="model_type" value="{{ model_type }}">
+                                <select name="selectedLag" onchange="this.form.submit()">
+                                    {% for result in analysis_results %}
+                                        <option value="{{ loop.index0 }}" {% if loop.index0 == selected_lag_index %}selected{% endif %}>
+                                            Lag {{ loop.index0 }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                            <p>Results are present</p>
+                            <div class="analysis-result">
+                                {% if selected_lag_index >= 0 and analysis_results[selected_lag_index].stats %}
+                                    <div style="width:100%; margin-bottom: 20px;">
+                                        <img src="{{ analysis_results[selected_lag_index].plot_url }}" alt="Analysis Plot" style="width: 70%; text-align: center;">
+                                    </div>
+                                    <p>Correlation: {{ analysis_results[selected_lag_index].stats.correlation }}</p>
+                                    <p>Average Price Change on High Sentiment Days: {{ analysis_results[selected_lag_index].stats.average_price_change_high }}%</p>
+                                    <p>Average Price Change on Low Sentiment Days: {{ analysis_results[selected_lag_index].stats.average_price_change_low }}%</p>
+                                    <p>R-squared: {{ analysis_results[selected_lag_index].stats.rsquared }}</p>
+                                    <p>RMSE: {{ analysis_results[selected_lag_index].stats.rmse }}</p>
+                                {% else %}
+                                    <p>Stats not available for this result.</p>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <p>No analysis results available or invalid index selected.</p>
+                            {% endif %}
+                        </div>
+                    </div>    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="fas fa-chart-area me-1"></i>
+                            Future Predictions
+                        </div>
+                        <div class="card-body">
+                            <p>These predictions show the expected changes in normalized prices based on the sentiment data for the selected lag period. Positive values indicate an expected increase in prices, while negative values indicate an expected decrease.</p>
+                            {% if future_predictions %}
+                                {% set avg_prediction = (future_predictions|sum / future_predictions|length) if future_predictions|length > 0 else 0 %}
+                                <p class="
+                                    {% if avg_prediction > 0 %}
+                                        positive
+                                    {% elif avg_prediction < 0 %}
+                                        negative
+                                    {% else %}
+                                        neutral
+                                    {% endif %}
+                                ">
+                                    Average Prediction: {{ avg_prediction|round(2) if avg_prediction is not none else "N/A" }}
+                                </p>
+                            {% else %}
+                                <p>No future predictions available.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="fas fa-chart-area me-1"></i>
+                            Overall Average Prediction
+                        </div>
+                        <div class="card-body">
+                            <p>This is the overall average prediction across all lag periods. It provides a general sense of the expected trend in normalized prices based on the sentiment data.</p>
+                            <p class="
+                                {% if overall_avg_prediction > 0 %}
+                                    positive
+                                {% elif overall_avg_prediction < 0 %}
+                                    negative
+                                {% else %}
+                                    neutral
+                                {% endif %}
+                            ">
+                                Overall Average Prediction: {{ overall_avg_prediction|round(2) if overall_avg_prediction is not none else "N/A" }}
+                            </p>
+                        </div>
+                    </div>                                                                      
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="fas fa-table me-1"></i>
+                            News Data
+                        </div>
+                        <div class="card-body" style="overflow-x: auto;">
+                            <div class="table-responsive">
+                                <p>Here is the table containing the news data used for sentiment analysis.</p>
+                                {{ table | safe }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            <footer class="py-4 bg-light mt-auto">
+                <div class="container-fluid px-4">
+                    <div class="d-flex align-items-center justify-content-between small">
+                        <div class="text-muted">Copyright &copy; Your Website 2023</div>
+                        <div>
+                            <a href="#">Privacy Policy</a>
+                            &middot;
+                            <div class="disclaimer-banner">
+                                Disclaimer: This data and predictions are for informational purposes only and do not constitute financial advice. Always conduct your own research.
+                            </div>
+                            <a href="#">Terms &amp; Conditions</a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="static/js/scripts.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#datatablesSimple').DataTable({
+                responsive: true,
+                pageLength: 10,
+                lengthChange: true,
+                searching: true,
+                ordering: true
+            });
+            $('#updatedPriceDataTable').DataTable({
+                responsive: true,
+                pageLength: 10,
+                lengthChange: true,
+                searching: true,
+                ordering: true
+            });
+        });
+    </script> 
+                
+</body>
+</html>

@@ -19,3 +19,7 @@ matplotlib
 scikit-learn
 seaborn
 statsmodels
+flask
+Flask-Caching
+cachetools
+scikit-learn

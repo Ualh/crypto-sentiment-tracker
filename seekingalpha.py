@@ -1,11 +1,15 @@
-import pandas as pd
+import requests
 from datetime import datetime
+import pandas as pd
 import html
 import re
-import requests
 from bs4 import BeautifulSoup
 from handlers import DataHandler
 import time
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class SeekingAlphaNewsAPI:
     def __init__(self, api_key):
@@ -112,7 +116,7 @@ class SeekingAlphaNewsAPI:
     def fetch_news_by_days(self, days, category):
             dh = DataHandler()
             df_daily_news = pd.DataFrame()
-
+            # days = 2 #for testing
             for i in range(days):
                 start = dh.get_date_dt(i + 1)  # Start of day
                 end = dh.get_date_dt(i)  # End of day
@@ -121,6 +125,7 @@ class SeekingAlphaNewsAPI:
 
                 news_data = self.fetch_news(category=f'market-news::{category}', since=initial_unix_s, until=final_unix_s, size=40)
                 time.sleep(1)
+                print(news_data)
                 if news_data:
                     formatted_data = self.format_news_data(news_data)
                     df_daily_news = pd.concat([df_daily_news, formatted_data], ignore_index=True)

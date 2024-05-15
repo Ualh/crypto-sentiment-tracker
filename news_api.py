@@ -1,9 +1,9 @@
-#news_api.py
-import os
 import requests
+from datetime import datetime
 import pandas as pd
-import json
+import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 class NewsAPI:
@@ -11,6 +11,7 @@ class NewsAPI:
         self.api_key = api_key or os.getenv('news_api')
         self.base_url = "https://newsapi.org/v2"
 
+        
     def make_request(self, endpoint, **params):
         """
         Constructs and sends a request to the specified endpoint.

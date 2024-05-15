@@ -1,9 +1,15 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from io import BytesIO
 import numpy as np
 import seaborn as sns
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score, mean_squared_error, mean_squared_error, root_mean_squared_error
 import statsmodels.api as sm
+import urllib.parse
+
 
 class Visualizations:
     def __init__(self, window_size=7):
@@ -15,7 +21,7 @@ class Visualizations:
         """
         self.window_size = window_size
 
-    def average_sentiment_per_time(self,from_date, data):
+    def average_sentiment_per_time(self, from_date, data):
         """
         Averages sentiment data for each unique timestamp per hour.
 
@@ -31,19 +37,19 @@ class Visualizations:
         # Determine the date range to filter data
         if from_date == 1:
             # Get data from the last 2 days
-            date_limit = pd.Timestamp.today() - pd.Timedelta(days=1.2)
-        elif from_date == 30:
+            date_limit = pd.Timestamp.today() - pd.Timedelta(days=11.2)
+        elif from_date in [30, 2]:
             data['date'] = data['date'].dt.round('h')
             # Get data from the last 30 days
-            date_limit = pd.Timestamp.today() - pd.Timedelta(days=31)
+            date_limit = pd.Timestamp.today() - pd.Timedelta(days=41)
         else:
             raise ValueError("from_date should be either 1 (daily) or 30 (monthly).")
-        
+
         # Filter data to include only the desired date range
         filtered_data = data[data['date'] >= date_limit]
 
         average_sentiment_per_time = filtered_data.groupby('date', as_index=False)['sentiment'].mean()
-        average_sentiment_per_time.columns = ['Date', 'Average Sentiment']
+        average_sentiment_per_time.columns = ['date', 'average sentiment']
         return average_sentiment_per_time
 
     def normalize_and_aggregate_prices(self, price_data):
@@ -68,100 +74,167 @@ class Visualizations:
         aggregated_data.columns = ['timestamp', 'normalized price']
         
         return aggregated_data
+        
 
-    def plot_normalized_price_and_sentiment(self, price_data, sentiment_data):
+    def plot_normalized_price_and_sentiment(self, price_data, sentiment_data, future_predictions=None, for_web=False):
         """
-        Plots normalized price and sentiment data over time.
+        Plots normalized price and sentiment data over time, including future predictions if provided.
 
         Parameters:
         - price_data (DataFrame): DataFrame containing 'Timestamp' and 'Normalized Price' columns.
         - sentiment_data (DataFrame): DataFrame containing 'Date' and 'Average Sentiment' columns.
+        - future_predictions (list): List of predicted future prices.
         """
         price_data.set_index('timestamp', inplace=True)
-        sentiment_data.set_index('Date', inplace=True)
-        
+        sentiment_data.set_index('date', inplace=True)
+
         fig, ax = plt.subplots(figsize=(12, 6))
         colors = plt.cm.viridis(np.linspace(0, 1, 10))
-        ax.plot(price_data.index, price_data['normalized price'], label='Normalized Price', color=colors[0])
+        ax.plot(price_data.index, price_data['normalized price'], label='Actual Normalized Price', color=colors[0])
         ax.set_xlabel('Date')
         ax.set_ylabel('Normalized Price (0 to 1 Scale)', color=colors[0])
         ax.set_title('Price Trend with Sentiment Analysis')
         ax.tick_params(axis='y', labelcolor=colors[0])
-        ax.legend()
+
+        if future_predictions:
+            future_dates = pd.date_range(start=price_data.index[-1], periods=len(future_predictions) + 1, freq='D')[1:]
+            ax.plot(future_dates, future_predictions, label='Predicted Price', color='red', linestyle='--')
 
         ax2 = ax.twinx()
-        ax2.plot(sentiment_data.index, sentiment_data['Average Sentiment'].rolling(window=self.window_size).mean(), label='Smoothed Sentiment', color=colors[5], linestyle='--')
+        ax2.plot(sentiment_data.index, sentiment_data['average sentiment'].rolling(window=self.window_size).mean(), label='Smoothed Sentiment', color=colors[5], linestyle='--')
         ax2.set_ylabel('Sentiment (0 to 1 Scale)', color=colors[5])
-        ax2.legend(loc='upper left')
         ax2.tick_params(axis='y', labelcolor=colors[5])
+        plt.xticks(rotation=45)
 
-        fig.legend(loc='upper right', bbox_to_anchor=(1, 1), bbox_transform=ax.transAxes)
+        # Add legend
+        lines, labels = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax2.legend(lines + lines2, labels + labels2, loc='upper right', bbox_to_anchor=(1, 1), bbox_transform=ax.transAxes)
+
         plt.grid(True)
-        plt.show()
-        return fig
 
-    def analysis(self, combined_data, from_date):
+        if for_web:
+            buf = BytesIO()
+            plt.savefig(buf, format='svg', bbox_inches='tight')
+            buf.seek(0)
+            svg = buf.getvalue().decode('utf-8')
+            buf.close()
+            plt.close(fig)
+            return svg
+        else:
+            plt.show()
+            return fig
+
+        
+
+    def analysis(self, combined_data, from_date, model_type='linear', for_web=False, predict_days=7):
         if from_date == 1:
             time = '5min'
             period = 'Per 5 Minute'
             intervals = '30min'
             lags = [-10, -5, -1, 0, 1, 5, 10]
-        elif from_date == 30:
+        elif from_date in [30, 2]:
             time = 'Day'
             period = 'Daily'
             intervals = 'W'
             lags = [-7, -2, -1, 0, 1, 2, 7]
+
         colors = plt.cm.viridis(np.linspace(0, 1, 10))
         correlations = []
+        results = []
+        future_predictions_by_lag = []
+
         for lag in lags:
             temp_data = combined_data.copy()
-            temp_data['Lagged Sentiment'] = temp_data['Average Sentiment'].shift(lag)
+            temp_data['Lagged Sentiment'] = temp_data['average sentiment'].shift(lag)
             temp_data.dropna(inplace=True)
+
+            if temp_data.empty or len(temp_data) < 2:
+                print(f"Not enough data points to perform fit for lag {lag}")
+                continue
+
             correlation = temp_data[['Lagged Sentiment', f'Next {time} Price Change']].corr().iloc[0, 1]
             correlations.append((lag, correlation))
-            plt.scatter(temp_data['Lagged Sentiment'], temp_data[f'Next {time} Price Change'], c=temp_data[f'Next {time} Price Change'], cmap='viridis')
-            plt.title(f'{period} Sentiment vs. Lag {lag} Price Change')
-            plt.xlabel('Lagged Sentiment')
-            plt.ylabel(f'Next {time} Price Change')
-            plt.grid(True)
-            m, b = np.polyfit(temp_data['Lagged Sentiment'], temp_data[f'Next {time} Price Change'], 1)
-            plt.plot(temp_data['Lagged Sentiment'], m * temp_data['Lagged Sentiment'] + b, color='darkred')
+
+            if model_type == 'linear':
+                X = sm.add_constant(temp_data['Lagged Sentiment'])
+                model = sm.OLS(temp_data[f'Next {time} Price Change'], X).fit()
+                rsquared = model.rsquared
+                rmse = root_mean_squared_error(temp_data[f'Next {time} Price Change'], model.predict(X))
+                # Predict future price changes
+                future_sentiment = combined_data['average sentiment'].tail(predict_days).shift(lag)
+                future_pred = model.predict(sm.add_constant(future_sentiment))
+            else:
+                rf_model = RandomForestRegressor(n_estimators=1000, random_state=42)
+                X_rf = temp_data[['Lagged Sentiment']]
+                y_rf = temp_data[f'Next {time} Price Change']
+                rf_model.fit(X_rf, y_rf)
+                y_rf_pred = rf_model.predict(X_rf)
+                rsquared = r2_score(y_rf, y_rf_pred)
+                rmse = root_mean_squared_error(y_rf, y_rf_pred)
+                # Predict future price changes
+                future_sentiment = combined_data['average sentiment'].tail(predict_days).shift(lag).fillna(method='ffill')
+                future_pred = rf_model.predict(future_sentiment.values.reshape(-1, 1))
+
+            future_predictions_by_lag.append(future_pred.mean(axis=0))
+
+            if for_web:
+                fig, ax = plt.subplots(figsize=(8, 6))
+                scatter = ax.scatter(temp_data['Lagged Sentiment'], temp_data[f'Next {time} Price Change'], 
+                                    c=temp_data[f'Next {time} Price Change'], cmap='viridis')
+                plt.title(f'{period} Sentiment vs. Lag {lag} Price Change')
+                plt.xlabel('Lagged Sentiment')
+                plt.ylabel(f'Next {time} Price Change')
+                plt.grid(True)
+                m, b = np.polyfit(temp_data['Lagged Sentiment'], temp_data[f'Next {time} Price Change'], 1)
+                plt.plot(temp_data['Lagged Sentiment'], m * temp_data['Lagged Sentiment'] + b, color='darkred')
+                img = BytesIO()
+                plt.savefig(img, format='svg', bbox_inches='tight')
+                img.seek(0)
+                svg_data = img.getvalue().decode('utf-8')
+                svg_url = "data:image/svg+xml;utf8," + urllib.parse.quote(svg_data)
+                plt.close()
+
+                stats = {
+                    "correlation": round(correlation, 2),
+                    "average_price_change_high": round(temp_data[temp_data['average sentiment'] > temp_data['average sentiment'].median()][f'Next {time} Price Change'].mean(), 2),
+                    "average_price_change_low": round(temp_data[temp_data['average sentiment'] <= temp_data['average sentiment'].median()][f'Next {time} Price Change'].mean(), 2),
+                    "rsquared": round(rsquared, 2),
+                    "rmse": round(rmse, 2)
+                }
+
+                results.append({"plot_url": svg_url, "stats": stats, "lag": lag})
+            else:
+                plt.scatter(temp_data['Lagged Sentiment'], temp_data[f'Next {time} Price Change'], 
+                            c=temp_data[f'Next {time} Price Change'], cmap='viridis')
+                plt.title(f'{period} Sentiment vs. Lag {lag} Price Change')
+                plt.xlabel('Lagged Sentiment')
+                plt.ylabel(f'Next {time} Price Change')
+                plt.grid(True)
+                m, b = np.polyfit(temp_data['Lagged Sentiment'], temp_data[f'Next {time} Price Change'], 1)
+                plt.plot(temp_data['Lagged Sentiment'], m * temp_data['Lagged Sentiment'] + b, color='darkred')
+                plt.show()
+
+                print(f"Correlation with {lag} {time}(s) lag: {round(correlation, 2)}")
+                print(f"{model_type.capitalize()} Model R-squared: {round(rsquared, 2)}")
+                print(f"{model_type.capitalize()} Model RMSE: {round(rmse, 2)}")
+
+                median_sentiment = temp_data['average sentiment'].median()
+                high_sentiment = temp_data[temp_data['average sentiment'] > median_sentiment]
+                low_sentiment = temp_data[temp_data['average sentiment'] <= median_sentiment]
+                print(f"\nAverage Price Change on High Sentiment {time}s:", round((high_sentiment[f'Next {time} Price Change'].mean()) * 100), "%")
+                print(f"Average Price Change on Low Sentiment {time}s:", round((low_sentiment[f'Next {time} Price Change'].mean()) * 100), "%")
+
+        if not for_web:
+            correlation_summary = pd.DataFrame(correlations, columns=[f'Lag ({time})', 'Correlation'])
+            plt.figure(figsize=(8, 4))
+            sns.barplot(x=f'Lag ({time})', y='Correlation', data=correlation_summary, color=colors[0])
+            plt.title('Correlation of Sentiment and Price Change Over Different Lags')
+            plt.ylabel('Correlation Coefficient')
+            plt.xlabel(f'{time}s of Lag')
             plt.show()
 
-            print(f"Correlation with {lag} {time}(s) lag: {round(correlation,2)}")
-
-            median_sentiment = temp_data['Average Sentiment'].median()
-            high_sentiment = temp_data[temp_data['Average Sentiment'] > median_sentiment]
-            low_sentiment = temp_data[temp_data['Average Sentiment'] <= median_sentiment]
-            print(f"\nAverage Price Change on High Sentiment {time}s:", round((high_sentiment[f'Next {time} Price Change'].mean())*100), "%")
-            print(f"Average Price Change on Low Sentiment {time}s:", round((low_sentiment[f'Next {time} Price Change'].mean())*100), "%")
-
-            X = sm.add_constant(temp_data['Lagged Sentiment'])
-            model = sm.OLS(temp_data[f'Next {time} Price Change'], X).fit()
-            rsquared = model.rsquared
-            aic = model.aic
-            pvalue = model.pvalues['Lagged Sentiment']
-            print("\nPredictive Power of Sentiment on Price:")
-            print("R-squared:", round(rsquared,2))
-            print("AIC:", round(aic,2))
-            print("P-value of Lagged Sentiment variable:", round(pvalue,2))
-            
-            if from_date == 30:
-                resampled_data = temp_data.resample(intervals).mean()
-                X = sm.add_constant(resampled_data['Lagged Sentiment'])
-                model = sm.OLS(resampled_data[f'Next {time} Price Change'], X).fit()
-                rsquared = model.rsquared
-                aic = model.aic
-                pvalue = model.pvalues['Lagged Sentiment']
-                print(f"\nPredictive Power of Sentiment on Price, over a {intervals} period:")
-                print("R-squared:", round(rsquared,2))
-                print("AIC:", round(aic,2))
-                print("P-value of Lagged Sentiment variable:", round(pvalue,2))
-
-        correlation_summary = pd.DataFrame(correlations, columns=[f'Lag ({time})', 'Correlation'])
-        plt.figure(figsize=(8, 4))
-        sns.barplot(x=f'Lag ({time})', y='Correlation', data=correlation_summary, color=colors[0])
-        plt.title('Correlation of Sentiment and Price Change Over Different Lags')
-        plt.ylabel('Correlation Coefficient')
-        plt.xlabel(f'{time}s of Lag')
-        plt.show()
+        if for_web:
+            return results, future_predictions_by_lag
+        else:
+            return future_predictions_by_lag

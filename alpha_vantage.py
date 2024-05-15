@@ -1,5 +1,3 @@
-
-#alha_vantage.py
 import os
 import requests
 import json

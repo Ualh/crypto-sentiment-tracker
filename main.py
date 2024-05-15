@@ -62,7 +62,7 @@ elif input == 1:
         df = pd.concat([df,df_daily_news_2])
 
 else:
-    print('wrong call. You should have written either 1 or 30')
+    raise ValueError("Invalid input for days back. Choose 1 for daily or 2 for monthly.")
 
 api = USEconomyAPI(os.getenv('useconomyapi'))
 starting_date = hd.convert_to_unix_ms(hd.get_date_dt(from_date))

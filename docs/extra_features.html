@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="" />
+    <meta name="author" content="" />
+    <title>Extra Features - Crypto Sentiment Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/style.min.css" rel="stylesheet" />
+    <link href="static/css/styles.css" rel="stylesheet" />
+    <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
+    <script defer src="https://www.livecoinwatch.com/static/lcw-widget.js"></script>
+</head>
+<body class="sb-nav-fixed">
+    <nav class="sb-topnav navbar navbar-expand navbar-dark bg-dark">
+        <a class="navbar-brand ps-3" href="index.html">Crypto Sentiment Dashboard</a>
+        <button class="btn btn-link btn-sm order-1 order-lg-0 me-4 me-lg-0" id="sidebarToggle" href="#!"><i class="fas fa-bars"></i></button>
+    </nav>
+
+    <div id="layoutSidenav">
+        <div id="layoutSidenav_nav">
+            <nav class="sb-sidenav accordion sb-sidenav-dark" id="sidenavAccordion">
+                <div class="sb-sidenav-menu">
+                    <div class="nav">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
+                            Dashboard
+                        </a>
+                        <a class="nav-link" href="{{ url_for('extra_features') }}">
+                            <div class="sb-nav-link-icon"><i class="fas fa-cogs"></i></div>
+                            Extra Features
+                        </a>
+                    </div>
+                </div>
+            </nav>
+        </div>
+        <div id="layoutSidenav_content">
+            <main>
+                <div class="container-fluid px-4">
+                    <h1 class="mt-4">Extra Features</h1>
+                    <ol class="breadcrumb mb-4">
+                        <li class="breadcrumb-item active">Widgets</li>
+                    </ol>
+                    <p>Here you can find various cryptocurrency widgets to enhance your website or blog.</p>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="fas fa-chart-area me-1"></i>
+                            Marquee Widget
+                        </div>
+                        <div class="card-body">
+                            <p>Our scrolling ticker marquee widget is a stylish way to show top and trending coins using very little height. These widgets are fully responsive and cleanly display cryptocurrency prices even on mobile devices.</p>
+                            <div class="livecoinwatch-widget-5" lcw-base="USD" lcw-color-tx="#999999" lcw-marquee-1="coins" lcw-marquee-2="movers" lcw-marquee-items="10"></div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="fas fa-chart-area me-1"></i>
+                            Coin Widget
+                        </div>
+                        <div class="card-body">
+                            <p>Show live prices for up to 60 tokens on your website in just a few clicks.</p>
+                            <div class="livecoinwatch-widget-1" lcw-coin="BTC" lcw-base="USD" lcw-secondary="BTC" lcw-period="d" lcw-color-tx="#ffffff" lcw-color-pr="#58c7c5" lcw-color-bg="#1f2434" lcw-border-w="1"></div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="fas fa-chart-area me-1"></i>
+                            Top 10 Widget
+                        </div>
+                        <div class="card-body">
+                            <p>Display the top 10 cryptocurrencies by market cap.</p>
+                            <div class="livecoinwatch-widget-3" lcw-base="USD" lcw-d-head="true" lcw-d-name="true" lcw-d-code="true" lcw-d-icon="true" lcw-color-tx="#ffffff" lcw-color-bg="#1f2434" lcw-border-w="1"></div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="fas fa-chart-area me-1"></i>
+                            Mini Widget
+                        </div>
+                        <div class="card-body">
+                            <p>This mini widget provides a compact way to display key cryptocurrency data.</p>
+                            <div class="livecoinwatch-widget-6" lcw-coin="BTC" lcw-base="USD" lcw-period="d" lcw-color-tx="#ffffff" lcw-color-bg="#1f2434" lcw-border-w="1"></div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+            <footer class="py-4 bg-light mt-auto">
+                <div class="container-fluid px-4">
+                    <div class="d-flex align-items-center justify-content-between small">
+                        <div class="text-muted">Copyright &copy; Your Website 2023</div>
+                        <div>
+                            <a href="#">Privacy Policy</a>
+                            &middot;
+                            <a href="#">Terms &amp; Conditions</a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+    <div class="disclaimer-banner">
+        Disclaimer: This data and predictions are for informational purposes only and do not constitute financial advice. Always conduct your own research.
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="static/js/scripts.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#datatablesSimple').DataTable({
+                responsive: true,
+                pageLength: 10,
+                lengthChange: true,
+                searching: true,
+                ordering: true
+            });
+            $('#updatedPriceDataTable').DataTable({
+                responsive: true,
+                pageLength: 10,
+                lengthChange: true,
+                searching: true,
+                ordering: true
+            });
+        });
+    </script>            
+</body>
+</html>
