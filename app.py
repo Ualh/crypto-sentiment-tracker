@@ -231,9 +231,8 @@ def generate_plots(price_data, days_back, sentiment_data):
 ######### Analysis ##########
 def merge_data(days_back, price_data, sentiment_data):
     if days_back == 1:
-        # Calculate percentage price change directly from normalized prices
-        price_data['price_change'] = price_data['normalized price'].pct_change() * 100
-        price_data['price_change'] = price_data['price_change'].fillna(0)  # Replace NaN values with 0
+        price_data['price_change'] = price_data['normalized price'].pct_change().fillna(0) * 100
+        price_data['price_change'] = price_data['price_change'].replace([np.inf, -np.inf], np.nan).fillna(0)
 
         # Resample price data to 5-minute intervals, forward filling the last known prices and changes
         price_data_resampled = price_data.resample('5min').last().ffill()
@@ -261,6 +260,7 @@ def merge_data(days_back, price_data, sentiment_data):
         # Calculate the daily price change percentage
         price_data_daily = pd.DataFrame(price_data_daily)  # Ensure it's a DataFrame for the next operations
         price_data_daily['Price Change'] = price_data_daily['normalized price'].pct_change() * 100
+        price_data_daily['Price_change'] = price_data['Price_change'].replace([np.inf, -np.inf], np.nan).fillna(0)
 
         # Shift the price change to align with the day's sentiment to measure its influence on the next day's price change
         price_data_daily['Price Change'] = price_data_daily['Price Change'].shift(-1)

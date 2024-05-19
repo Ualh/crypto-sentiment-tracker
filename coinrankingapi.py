@@ -120,7 +120,7 @@ class CryptoDataFetcher:
                         if entry['price'] is not None:
                             price = float(entry['price'])
                             all_data.append({
-                                'coin': name,
+                                'coin name': name,
                                 'timestamp': entry['timestamp'],
                                 'price': price
                             })
@@ -145,5 +145,5 @@ class CryptoDataFetcher:
             writer = csv.writer(file)
             writer.writerow(['coin name', 'timestamp', 'price'])
             for _, row in data.iterrows():
-                writer.writerow([row['coin'], row['timestamp'], row['price']])
+                writer.writerow([row['coin name'], row['timestamp'], row['price']])
         print(f"Data has been written to {filename}")

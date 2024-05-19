@@ -37,11 +37,11 @@ class Visualizations:
         # Determine the date range to filter data
         if from_date == 1:
             # Get data from the last 2 days
-            date_limit = pd.Timestamp.today() - pd.Timedelta(days=11.2)
+            date_limit = pd.Timestamp.today() - pd.Timedelta(days=14.2)
         elif from_date in [30, 2]:
             data['date'] = data['date'].dt.round('h')
             # Get data from the last 30 days
-            date_limit = pd.Timestamp.today() - pd.Timedelta(days=41)
+            date_limit = pd.Timestamp.today() - pd.Timedelta(days=44)
         else:
             raise ValueError("from_date should be either 1 (daily) or 30 (monthly).")
 
@@ -65,16 +65,16 @@ class Visualizations:
         price_data.columns = map(str.lower, price_data.columns)
         price_data['timestamp'] = pd.to_datetime(price_data['timestamp'], unit='s')
         
-        # Normalize the price data across all coins at each timestamp
-        scaler = MinMaxScaler()
-        price_data['normalized price'] = scaler.fit_transform(price_data[['price']])
-        
+        # Normalize the price data within each coin
+        price_data['normalized price'] = price_data.groupby('coin name')['price'].transform(lambda x: MinMaxScaler().fit_transform(x.values.reshape(-1, 1)).flatten())
+    
         # Aggregate normalized prices by averaging them across all coins for each unique timestamp
         aggregated_data = price_data.groupby('timestamp', as_index=False)['normalized price'].mean()
         aggregated_data.columns = ['timestamp', 'normalized price']
         
         return aggregated_data
-        
+    
+   
 
     def plot_normalized_price_and_sentiment(self, price_data, sentiment_data, future_predictions=None, for_web=False):
         """
@@ -98,10 +98,10 @@ class Visualizations:
 
         if future_predictions:
             future_dates = pd.date_range(start=price_data.index[-1], periods=len(future_predictions) + 1, freq='D')[1:]
-            ax.plot(future_dates, future_predictions, label='Predicted Price', color='red', linestyle='--')
+            ax.plot(future_dates, future_predictions, label='Predicted Price', color='red')
 
         ax2 = ax.twinx()
-        ax2.plot(sentiment_data.index, sentiment_data['average sentiment'].rolling(window=self.window_size).mean(), label='Smoothed Sentiment', color=colors[5], linestyle='--')
+        ax2.plot(sentiment_data.index, sentiment_data['average sentiment'].rolling(window=self.window_size).mean(), label='Smoothed Sentiment', color=colors[5])
         ax2.set_ylabel('Sentiment (0 to 1 Scale)', color=colors[5])
         ax2.tick_params(axis='y', labelcolor=colors[5])
         plt.xticks(rotation=45)
