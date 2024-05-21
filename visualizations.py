@@ -9,6 +9,9 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_squared_error, mean_squared_error, root_mean_squared_error
 import statsmodels.api as sm
 import urllib.parse
+import pmdarima as pm
+from sklearn.model_selection import train_test_split
+
 
 
 class Visualizations:
@@ -37,11 +40,11 @@ class Visualizations:
         # Determine the date range to filter data
         if from_date == 1:
             # Get data from the last 2 days
-            date_limit = pd.Timestamp.today() - pd.Timedelta(days=14.2)
+            date_limit = pd.Timestamp.today() - pd.Timedelta(days=17.5)
         elif from_date in [30, 2]:
             data['date'] = data['date'].dt.round('h')
             # Get data from the last 30 days
-            date_limit = pd.Timestamp.today() - pd.Timedelta(days=44)
+            date_limit = pd.Timestamp.today() - pd.Timedelta(days=47.1)
         else:
             raise ValueError("from_date should be either 1 (daily) or 30 (monthly).")
 
@@ -156,6 +159,9 @@ class Visualizations:
             correlation = temp_data[['Lagged Sentiment', f'Next {time} Price Change']].corr().iloc[0, 1]
             correlations.append((lag, correlation))
 
+            # Split data into train and test sets
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+
             if model_type == 'linear':
                 X = sm.add_constant(temp_data['Lagged Sentiment'])
                 model = sm.OLS(temp_data[f'Next {time} Price Change'], X).fit()
@@ -238,3 +244,75 @@ class Visualizations:
             return results, future_predictions_by_lag
         else:
             return future_predictions_by_lag
+
+    def forecast_prices_with_arima(self, price_data, forecast_periods=24, for_web=False):
+        """
+        Forecasts average percentage change in future prices using an Auto ARIMA model on a copy of aggregated and normalized price data,
+        and optionally plots the forecast with the historical data.
+
+        Parameters:
+        - price_data (DataFrame): DataFrame containing 'timestamp' and 'normalized price' columns, aggregated across different coins.
+        - forecast_periods (int): Number of periods to forecast ahead.
+        - for_web (bool): If True, returns the plot in SVG format, otherwise displays the plot interactively.
+
+        Returns:
+        - tuple (dict, str/svg): Returns a tuple containing the averages of forecasted changes, RMSE, and the plot either as a path to save or as an SVG string.
+        """
+        data_copy = price_data.copy()
+        data_copy.columns = data_copy.columns.str.lower()
+        last_known_price = data_copy['normalized price'].iloc[-1]
+
+        # Fit the Auto ARIMA model
+        model = pm.auto_arima(data_copy['normalized price'], seasonal=False, m=1,
+                            suppress_warnings=True, stepwise=True, error_action='ignore', trace=False)
+
+        # In-sample prediction for RMSE calculation
+        in_sample_pred = model.predict_in_sample()
+        rmse = np.sqrt(mean_squared_error(data_copy['normalized price'], in_sample_pred))
+
+        # Forecast future prices
+        forecast_results = model.predict(n_periods=forecast_periods, return_conf_int=True)
+        forecast_df = pd.DataFrame({
+            'forecasted_price': forecast_results[0],
+            'ci_lower': forecast_results[1][:, 0],
+            'ci_upper': forecast_results[1][:, 1]
+        })
+
+        # Add a timestamp index to the forecast DataFrame
+        last_date = data_copy.index[-1]
+        future_dates = pd.date_range(start=last_date, periods=forecast_periods + 1, freq='h')[1:]
+        forecast_df.set_index(future_dates, inplace=True)
+        
+        # Calculate the average percentage change and the confidence intervals in percentage
+        forecast_df['avg_change_percent'] = ((forecast_df['forecasted_price'] - last_known_price) / last_known_price) * 100
+        forecast_df['ci_lower_percent'] = ((forecast_df['ci_lower'] - last_known_price) / last_known_price) * 100
+        forecast_df['ci_upper_percent'] = ((forecast_df['ci_upper'] - last_known_price) / last_known_price) * 100
+
+        # Calculate the average of the entire forecast period for each measure
+        averages = {
+            'average_change_percent': forecast_df['avg_change_percent'].mean(),
+            'average_ci_lower_percent': forecast_df['ci_lower_percent'].mean(),
+            'average_ci_upper_percent': forecast_df['ci_upper_percent'].mean(),
+            'rmse': rmse
+        }
+
+        # Plotting
+        plt.figure(figsize=(10, 5))
+        plt.plot(data_copy.index, data_copy['normalized price'], label='Historical Normalized Price')
+        plt.plot(forecast_df.index, forecast_df['forecasted_price'], label='Forecasted Price', color='red')
+        plt.fill_between(forecast_df.index, forecast_df['ci_lower'], forecast_df['ci_upper'], color='red', alpha=0.3)
+        plt.title('Forecasted Normalized Prices')
+        plt.xlabel('Timestamp')
+        plt.ylabel('Normalized Price')
+        plt.legend()
+
+        if for_web:
+            buf = BytesIO()
+            plt.savefig(buf, format='svg', bbox_inches='tight')
+            plt.close()
+            buf.seek(0)
+            svg = buf.getvalue().decode('utf-8')
+            return averages, svg
+        else:
+            plt.show()
+            return averages, None

@@ -66,6 +66,12 @@ def dashboard():
     news_df = fetch_news(days_back)
     price_data, sentiment_data = perform_sentiment_analysis(news_df, days_back, category)
     plot, price_data, sentiment_data = generate_plots(price_data, days_back, sentiment_data)
+    if days_back == 1:
+        forecast_period = 12
+    else:
+        forecast_period = 24
+    averages, forecast_plot = vz.forecast_prices_with_arima(price_data, forecast_periods=forecast_period, for_web=True)
+
     combined_data = merge_data(days_back, price_data, sentiment_data)
     
     if model_type == 'linear':
@@ -95,7 +101,7 @@ def dashboard():
 
     # Calculate the overall average prediction across all lags
     overall_avg_prediction = round(np.mean(all_predictions), 2) if all_predictions else 'N/A'
-
+    
     return render_template('dashboard.html',
                             table=news_df.to_html(classes='display', index=False, table_id='datatablesSimple'),
                             plot=plot,
@@ -106,7 +112,9 @@ def dashboard():
                             model_type=model_type,
                             future_predictions=future_predictions,
                             avg_prediction=avg_prediction,
-                            overall_avg_prediction=overall_avg_prediction)
+                            overall_avg_prediction=overall_avg_prediction,
+                            averages=averages,
+                            forecast_plot=forecast_plot)
 
 
 #The caching mechanism stores the complete result of the function once it successfully executes
@@ -121,9 +129,9 @@ def fetch_news(days_back):
     if app.config['TESTING']:
         # Load mock news data based on 'days_back'
         if days_back == 2:
-            return pd.read_csv("data/30d_news.csv")
+            return pd.read_csv("data/2024-04-05_30d_news.csv")
         elif days_back == 1:
-            return pd.read_csv("data/24h_news.csv")
+            return pd.read_csv("data/2024-04-05_24h_news.csv")
         else:
             raise ValueError("Invalid 'days_back' value. It should be either 1 (daily) or 30 (monthly).")
     else:
@@ -196,11 +204,12 @@ def perform_sentiment_analysis(news_df, days_back, category):
     print('nothing was cached')
     if app.config['TESTING']:
         if days_back == 2:
-            sentiment_data = pd.read_csv("data/30d_news_with_sentiment.csv")
-            price_data = pd.read_csv("data/30d_50meme_history.csv")
+            sentiment_data = pd.read_csv("data/2024-04-05_30d_news_with_sentiment.csv")
+            price_data = pd.read_csv(f"data/2024-04-05_30d_50{category}_history.csv")
         elif days_back == 1:
-            sentiment_data = pd.read_csv("data/24h_news_with_sentiment.csv")
-            price_data = pd.read_csv("data/24h_50meme_history.csv")
+            sentiment_data = pd.read_csv("data/2024-04-05_24h_news_with_sentiment.csv")
+            price_data = pd.read_csv(f"data/2024-04-05_24h_50{category}_history.csv")
+        
         else:
             raise ValueError("Invalid 'days_back' value.")
     else:
@@ -260,7 +269,6 @@ def merge_data(days_back, price_data, sentiment_data):
         # Calculate the daily price change percentage
         price_data_daily = pd.DataFrame(price_data_daily)  # Ensure it's a DataFrame for the next operations
         price_data_daily['Price Change'] = price_data_daily['normalized price'].pct_change() * 100
-        price_data_daily['Price_change'] = price_data['Price_change'].replace([np.inf, -np.inf], np.nan).fillna(0)
 
         # Shift the price change to align with the day's sentiment to measure its influence on the next day's price change
         price_data_daily['Price Change'] = price_data_daily['Price Change'].shift(-1)
@@ -272,6 +280,7 @@ def merge_data(days_back, price_data, sentiment_data):
         combined_data = pd.concat([price_data_daily, sentiment_data_daily], axis=1)
         combined_data.columns = ['Normalized Price', 'Next Day Price Change', 'average sentiment']
         combined_data.dropna(inplace=True)  # Drop rows with NaN values that might result from resampling, shifting, or non-overlapping dates
+        print(combined_data)
     return combined_data
 
 

@@ -150,7 +150,23 @@
                                 Overall Average Prediction: {{ overall_avg_prediction|round(2) if overall_avg_prediction is not none else "N/A" }}
                             </p>
                         </div>
-                    </div>                                                                      
+                    </div>
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <i class="fas fa-chart-area me-1"></i>
+                            ARIMA Forecast Results
+                        </div>
+                        <div class="card-body" style="overflow-x: auto; width: 70%;">
+                            <p>Average Forecasted Change Percent: {{ averages.average_change_percent|round(2) }}</p>
+                            <p>Average Confidence Interval Lower Percent: {{ averages.average_ci_lower_percent|round(2) }}</p>
+                            <p>Average Confidence Interval Upper Percent: {{ averages.average_ci_upper_percent|round(2) }}</p>
+                            <p>RMSE: {{ averages.rmse|round(4) }}</p>
+                            {% if forecast_plot %}
+                                <img src="data:image/svg+xml;utf8,{{ forecast_plot|safe }}" alt="Forecast Plot">
+                            {% endif %}
+                        </div>
+                    </div>
+                                                                                      
                     <div class="card mb-4">
                         <div class="card-header">
                             <i class="fas fa-table me-1"></i>
