@@ -160,27 +160,28 @@ class Visualizations:
             correlations.append((lag, correlation))
 
             # Split data into train and test sets
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+            X_train, X_test, y_train, y_test = train_test_split(temp_data[['Lagged Sentiment']], temp_data[f'Next {time} Price Change'], test_size=0.25, random_state=42)
 
             if model_type == 'linear':
-                X = sm.add_constant(temp_data['Lagged Sentiment'])
-                model = sm.OLS(temp_data[f'Next {time} Price Change'], X).fit()
-                rsquared = model.rsquared
-                rmse = root_mean_squared_error(temp_data[f'Next {time} Price Change'], model.predict(X))
+                X_train_const = sm.add_constant(X_train)
+                X_test_const = sm.add_constant(X_test)
+                model = sm.OLS(y_train, X_train_const).fit()
+                y_pred = model.predict(X_test_const)
+                rsquared = r2_score(y_test, y_pred)
+                rmse = mean_squared_error(y_test, y_pred, squared=False)
                 # Predict future price changes
-                future_sentiment = combined_data['average sentiment'].tail(predict_days).shift(lag)
+                future_sentiment = combined_data['average sentiment'].tail(predict_days).shift(lag).fillna(method='ffill')
                 future_pred = model.predict(sm.add_constant(future_sentiment))
             else:
                 rf_model = RandomForestRegressor(n_estimators=1000, random_state=42)
-                X_rf = temp_data[['Lagged Sentiment']]
-                y_rf = temp_data[f'Next {time} Price Change']
-                rf_model.fit(X_rf, y_rf)
-                y_rf_pred = rf_model.predict(X_rf)
-                rsquared = r2_score(y_rf, y_rf_pred)
-                rmse = root_mean_squared_error(y_rf, y_rf_pred)
+                rf_model.fit(X_train, y_train)
+                y_pred = rf_model.predict(X_test)
+                rsquared = r2_score(y_test, y_pred)
+                rmse = mean_squared_error(y_test, y_pred, squared=False)
                 # Predict future price changes
                 future_sentiment = combined_data['average sentiment'].tail(predict_days).shift(lag).fillna(method='ffill')
                 future_pred = rf_model.predict(future_sentiment.values.reshape(-1, 1))
+
 
             future_predictions_by_lag.append(future_pred.mean(axis=0))
 
