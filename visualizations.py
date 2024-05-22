@@ -24,7 +24,7 @@ class Visualizations:
         """
         self.window_size = window_size
 
-    def average_sentiment_per_time(self, from_date, data):
+    def average_sentiment_per_time(self, from_date, data, end=None, start=None):
         """
         Averages sentiment data for each unique timestamp per hour.
 
@@ -38,13 +38,16 @@ class Visualizations:
         data['date'] = pd.to_datetime(data['date'])
 
         # Determine the date range to filter data
-        if from_date == 1:
+        if from_date == 0:
+            # Get data from the last 30 days
+            date_limit = pd.Timedelta(end) - pd.Timedelta(start)
+        elif from_date == 1:
             # Get data from the last 2 days
-            date_limit = pd.Timestamp.today() - pd.Timedelta(days=17.5)
+            date_limit = pd.Timestamp.today() - pd.Timedelta(days=1.5)
         elif from_date in [30, 2]:
             data['date'] = data['date'].dt.round('h')
             # Get data from the last 30 days
-            date_limit = pd.Timestamp.today() - pd.Timedelta(days=47.1)
+            date_limit = pd.Timestamp.today() - pd.Timedelta(days=31)
         else:
             raise ValueError("from_date should be either 1 (daily) or 30 (monthly).")
 

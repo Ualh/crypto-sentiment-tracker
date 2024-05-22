@@ -138,17 +138,21 @@
                         </div>
                         <div class="card-body">
                             <p>This is the overall average prediction across all lag periods. It provides a general sense of the expected trend in normalized prices based on the sentiment data.</p>
-                            <p class="
-                                {% if overall_avg_prediction > 0 %}
-                                    positive
-                                {% elif overall_avg_prediction < 0 %}
-                                    negative
-                                {% else %}
-                                    neutral
-                                {% endif %}
-                            ">
-                                Overall Average Prediction: {{ overall_avg_prediction|round(2) if overall_avg_prediction is not none else "N/A" }}
-                            </p>
+                            {% if overall_avg_prediction is none %}
+                                <p>Overall Average Prediction: N/A</p>
+                            {% else %}
+                                <p class="
+                                    {% if overall_avg_prediction > 0 %}
+                                        positive
+                                    {% elif overall_avg_prediction < 0 %}
+                                        negative
+                                    {% else %}
+                                        neutral
+                                    {% endif %}
+                                ">
+                                    Overall Average Prediction: {{ overall_avg_prediction|round(2) }}
+                                </p>
+                            {% endif %}
                         </div>
                     </div>
                     <div class="card mb-4">

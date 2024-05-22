@@ -67,7 +67,7 @@ def dashboard():
     price_data, sentiment_data = perform_sentiment_analysis(news_df, days_back, category)
     plot, price_data, sentiment_data = generate_plots(price_data, days_back, sentiment_data)
     if days_back == 1:
-        forecast_period = 12
+        forecast_period = 6
     else:
         forecast_period = 24
     averages, forecast_plot = vz.forecast_prices_with_arima(price_data, forecast_periods=forecast_period, for_web=True)
@@ -99,8 +99,9 @@ def dashboard():
             lag_predictions = [lag_predictions]
         all_predictions.extend(pred for pred in lag_predictions if not np.isnan(pred))
 
-    # Calculate the overall average prediction across all lags
-    overall_avg_prediction = round(np.mean(all_predictions), 2) if all_predictions else 'N/A'
+
+    overall_avg_prediction = round(np.mean(all_predictions), 2) if all_predictions else 0  # Set to 0 if no predictions
+
     
     return render_template('dashboard.html',
                             table=news_df.to_html(classes='display', index=False, table_id='datatablesSimple'),
