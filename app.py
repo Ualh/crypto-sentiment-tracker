@@ -73,9 +73,8 @@ def dashboard():
     averages, forecast_plot = vz.forecast_prices_with_arima(price_data, forecast_periods=forecast_period, for_web=True)
 
     combined_data = merge_data(days_back, price_data, sentiment_data)
-    
-    if model_type == 'linear':
-        analysis_results, future_predictions_by_lag = vz.analysis(combined_data, days_back, model_type='linear', for_web=True, predict_days=5)
+    if model_type in ['linear', 'gbm', 'svr', 'random_forest', 'random_forest_tuned']:
+            analysis_results, future_predictions_by_lag = vz.analysis(combined_data, days_back, model_type=model_type, for_web=True, predict_days=5, tune='yes' if model_type == 'random_forest_tuned' else None)
     else:
         analysis_results, future_predictions_by_lag = vz.analysis(combined_data, days_back, model_type='random_forest', for_web=True, predict_days=5)
 

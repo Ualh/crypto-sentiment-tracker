@@ -78,9 +78,12 @@
                                     <select id="model_type" name="model_type" class="form-select">
                                         <option value="linear">Linear Regression</option>
                                         <option value="random_forest">Random Forest</option>
+                                        <option value="random_forest_tuned">Random Forest Tuned (caution this takes lots of time)</option>
+                                        <option value="gbm">Gradient Boosting Machine</option>
+                                        <option value="svr">Support Vector Regression</option>
                                     </select>
-                                    <small class="form-text text-muted">Choose the type of model to use for the analysis. Linear Regression is simpler, while Random Forest can capture more complex patterns.</small>
-                                </div>
+                                    <small class="form-text text-muted">Choose the type of model to use for the analysis. Different models can capture different patterns in the data.</small>
+                                </div>                                 
 
                                 <button type="submit" class="btn btn-primary">Submit</button>
                             </form>

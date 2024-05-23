@@ -4,9 +4,13 @@ import matplotlib.dates as mdates
 from io import BytesIO
 import numpy as np
 import seaborn as sns
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import KFold   
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler    
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import r2_score, mean_squared_error, mean_squared_error, root_mean_squared_error
+from sklearn.metrics import r2_score, mean_squared_error, root_mean_squared_error
 import statsmodels.api as sm
 import urllib.parse
 import pmdarima as pm
@@ -35,29 +39,46 @@ class Visualizations:
         - DataFrame: DataFrame with the average sentiment calculated for each unique timestamp.
         """
         data.columns = data.columns.str.lower()
-        data['date'] = pd.to_datetime(data['date'])
+        # Try converting to datetime and handle errors
+        try:
+            data['date'] = pd.to_datetime(data['date'], format="%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            # Find the problematic rows
+            incorrect_format = data[~data['date'].str.match(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')]
+
+            # Print or log the problematic rows
+            print("Incorrect date format found in rows:\n", incorrect_format)
+
+            # Optionally: Drop or correct the problematic rows
+            data = data[data['date'].str.match(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')]
+
+            # Convert to datetime again
+            data['date'] = pd.to_datetime(data['date'], format="%Y-%m-%d %H:%M:%S")
 
         # Determine the date range to filter data
         if from_date == 0:
-            # Get data from the last 30 days
-            date_limit = pd.Timedelta(end) - pd.Timedelta(start)
+            # Get data from the specific time range
+            start_date = pd.to_datetime(start)
+            end_date = pd.to_datetime(end)
         elif from_date == 1:
             # Get data from the last 2 days
-            date_limit = pd.Timestamp.today() - pd.Timedelta(days=1.5)
+            end_date = pd.Timestamp.today()
+            start_date = end_date - pd.Timedelta(days= 1.5)
         elif from_date in [30, 2]:
             data['date'] = data['date'].dt.round('h')
             # Get data from the last 30 days
-            date_limit = pd.Timestamp.today() - pd.Timedelta(days=31)
+            end_date = pd.Timestamp.today()
+            start_date = end_date - pd.Timedelta(days=52)
         else:
-            raise ValueError("from_date should be either 1 (daily) or 30 (monthly).")
+            raise ValueError("from_date should be either 0 (custom range), 1 (daily), or 30 (monthly).")
 
         # Filter data to include only the desired date range
-        filtered_data = data[data['date'] >= date_limit]
+        filtered_data = data[(data['date'] >= start_date) & (data['date'] <= end_date)]
 
         average_sentiment_per_time = filtered_data.groupby('date', as_index=False)['sentiment'].mean()
         average_sentiment_per_time.columns = ['date', 'average sentiment']
         return average_sentiment_per_time
-
+    
     def normalize_and_aggregate_prices(self, price_data):
         """
         Normalizes and aggregates price data by timestamp across different coins.
@@ -71,9 +92,8 @@ class Visualizations:
         price_data.columns = map(str.lower, price_data.columns)
         price_data['timestamp'] = pd.to_datetime(price_data['timestamp'], unit='s')
         
-        # Normalize the price data within each coin
+
         price_data['normalized price'] = price_data.groupby('coin name')['price'].transform(lambda x: MinMaxScaler().fit_transform(x.values.reshape(-1, 1)).flatten())
-    
         # Aggregate normalized prices by averaging them across all coins for each unique timestamp
         aggregated_data = price_data.groupby('timestamp', as_index=False)['normalized price'].mean()
         aggregated_data.columns = ['timestamp', 'normalized price']
@@ -133,7 +153,7 @@ class Visualizations:
 
         
 
-    def analysis(self, combined_data, from_date, model_type='linear', for_web=False, predict_days=7):
+    def analysis(self, combined_data, from_date, model_type='linear', for_web=False, predict_days=7, tune=None):
         if from_date == 1:
             time = '5min'
             period = 'Per 5 Minute'
@@ -149,6 +169,7 @@ class Visualizations:
         correlations = []
         results = []
         future_predictions_by_lag = []
+        
 
         for lag in lags:
             temp_data = combined_data.copy()
@@ -162,31 +183,78 @@ class Visualizations:
             correlation = temp_data[['Lagged Sentiment', f'Next {time} Price Change']].corr().iloc[0, 1]
             correlations.append((lag, correlation))
 
-            # Split data into train and test sets
-            X_train, X_test, y_train, y_test = train_test_split(temp_data[['Lagged Sentiment']], temp_data[f'Next {time} Price Change'], test_size=0.25, random_state=42)
+            X = temp_data[['Lagged Sentiment']]
+            y = temp_data[f'Next {time} Price Change']
+            
+            fold_rsquared = []
+            fold_rmse = []
+            fold_predictions = []
 
-            if model_type == 'linear':
-                X_train_const = sm.add_constant(X_train)
-                X_test_const = sm.add_constant(X_test)
-                model = sm.OLS(y_train, X_train_const).fit()
-                y_pred = model.predict(X_test_const)
-                rsquared = r2_score(y_test, y_pred)
-                rmse = mean_squared_error(y_test, y_pred, squared=False)
-                # Predict future price changes
-                future_sentiment = combined_data['average sentiment'].tail(predict_days).shift(lag).fillna(method='ffill')
-                future_pred = model.predict(sm.add_constant(future_sentiment))
+            n_splits = min(5, len(temp_data))  # Ensure n_splits does not exceed the number of samples
+            kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+
+            # Setup parameter grid
+            param_grid = {
+                'n_estimators': [100, 500, 1000],
+                'max_depth': [None, 10, 20, 30],
+                'min_samples_split': [2, 5, 10]
+            }
+
+            for train_index, test_index in kf.split(temp_data):
+                X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+                y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+
+                if model_type == 'linear':
+                    X_train_const = sm.add_constant(X_train)
+                    X_test_const = sm.add_constant(X_test)
+                    model = sm.OLS(y_train, X_train_const).fit()
+                    y_pred = model.predict(X_test_const)
+                elif model_type == 'gbm':
+                    model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
+                    model.fit(X_train, y_train)
+                    y_pred = model.predict(X_test)
+                elif model_type == 'svr':
+                    model = SVR(kernel='rbf', C=100, gamma=0.1, epsilon=.1)
+                    model.fit(X_train, y_train)
+                    y_pred = model.predict(X_test)
+                else:
+                    if tune == 'yes':
+                        # Setup the Random Forest model with GridSearchCV
+                        rf = RandomForestRegressor(random_state=42)
+                        model = GridSearchCV(rf, param_grid, cv=5, scoring='neg_mean_squared_error', verbose=1)
+                        model.fit(X_train, y_train)
+                        y_pred = model.best_estimator_.predict(X_test)
+                    else:
+                         continue
+                    model = RandomForestRegressor(n_estimators=1000, random_state=42)
+                    model.fit(X_train, y_train)
+                    y_pred = model.predict(X_test)
+
+                    
+
+
+                fold_rsquared.append(r2_score(y_test, y_pred))
+                fold_rmse.append(root_mean_squared_error(y_test, y_pred))
+
+            avg_rsquared = np.mean(fold_rsquared)
+            avg_rmse = np.mean(fold_rmse)
+            results.append({
+                "correlation": round(correlation, 2),
+                "rsquared": round(avg_rsquared, 2),
+                "rmse": round(avg_rmse, 2),
+                "lag": lag
+            })
+
+            # Generate future sentiment values
+            future_sentiment = combined_data['average sentiment'].tail(predict_days).shift(lag).fillna(method='ffill')
+
+            # Check for remaining NaNs and only predict if there are none
+            if not future_sentiment.isna().any():
+                future_pred = model.predict(np.atleast_2d(future_sentiment).T if model_type != 'linear' else sm.add_constant(future_sentiment))
+                future_predictions_by_lag.append(future_pred.mean(axis=0))
             else:
-                rf_model = RandomForestRegressor(n_estimators=1000, random_state=42)
-                rf_model.fit(X_train, y_train)
-                y_pred = rf_model.predict(X_test)
-                rsquared = r2_score(y_test, y_pred)
-                rmse = mean_squared_error(y_test, y_pred, squared=False)
-                # Predict future price changes
-                future_sentiment = combined_data['average sentiment'].tail(predict_days).shift(lag).fillna(method='ffill')
-                future_pred = rf_model.predict(future_sentiment.values.reshape(-1, 1))
+                print("Skipping prediction due to NaN values in input")
 
-
-            future_predictions_by_lag.append(future_pred.mean(axis=0))
 
             if for_web:
                 fig, ax = plt.subplots(figsize=(8, 6))
@@ -209,8 +277,8 @@ class Visualizations:
                     "correlation": round(correlation, 2),
                     "average_price_change_high": round(temp_data[temp_data['average sentiment'] > temp_data['average sentiment'].median()][f'Next {time} Price Change'].mean(), 2),
                     "average_price_change_low": round(temp_data[temp_data['average sentiment'] <= temp_data['average sentiment'].median()][f'Next {time} Price Change'].mean(), 2),
-                    "rsquared": round(rsquared, 2),
-                    "rmse": round(rmse, 2)
+                    "rsquared": round(avg_rsquared, 2),
+                    "rmse": round(avg_rmse, 2)
                 }
 
                 results.append({"plot_url": svg_url, "stats": stats, "lag": lag})
@@ -226,8 +294,8 @@ class Visualizations:
                 plt.show()
 
                 print(f"Correlation with {lag} {time}(s) lag: {round(correlation, 2)}")
-                print(f"{model_type.capitalize()} Model R-squared: {round(rsquared, 2)}")
-                print(f"{model_type.capitalize()} Model RMSE: {round(rmse, 2)}")
+                print(f"{model_type.capitalize()} Model R-squared: {round(avg_rsquared, 2)}")
+                print(f"{model_type.capitalize()} Model RMSE: {round(avg_rmse, 2)}")
 
                 median_sentiment = temp_data['average sentiment'].median()
                 high_sentiment = temp_data[temp_data['average sentiment'] > median_sentiment]
@@ -272,7 +340,7 @@ class Visualizations:
 
         # In-sample prediction for RMSE calculation
         in_sample_pred = model.predict_in_sample()
-        rmse = np.sqrt(mean_squared_error(data_copy['normalized price'], in_sample_pred))
+        rmse = np.sqrt(root_mean_squared_error(data_copy['normalized price'], in_sample_pred))
 
         # Forecast future prices
         forecast_results = model.predict(n_periods=forecast_periods, return_conf_int=True)
