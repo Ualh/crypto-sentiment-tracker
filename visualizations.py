@@ -5,6 +5,9 @@ from io import BytesIO
 import numpy as np
 import seaborn as sns
 from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.utils import resample
+from sklearn.base import clone 
+from sklearn.svm import SVR
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import KFold   
 from sklearn.preprocessing import MinMaxScaler
@@ -188,50 +191,47 @@ class Visualizations:
             
             fold_rsquared = []
             fold_rmse = []
-            fold_predictions = []
 
-            n_splits = min(5, len(temp_data))  # Ensure n_splits does not exceed the number of samples
-            kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
 
-            # Setup parameter grid
-            param_grid = {
-                'n_estimators': [100, 500, 1000],
-                'max_depth': [None, 10, 20, 30],
-                'min_samples_split': [2, 5, 10]
-            }
+            if model_type == 'linear':
+                base_model = sm.OLS  # Use statsmodels' OLS as a placeholder
+            elif model_type == 'gbm':
+                base_model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
+            elif model_type == 'svr':
+                base_model = SVR(kernel='rbf', C=100, gamma=0.1, epsilon=.1)
+            else:
+                # Setup the Random Forest model
+                if tune == 'yes':
+                    base_model = GridSearchCV(
+                        RandomForestRegressor(random_state=42),
+                        param_grid={
+                            'n_estimators': [100, 500, 1000],
+                            'max_depth': [None, 10, 20, 30],
+                            'min_samples_split': [2, 5, 10]
+                        },
+                        cv=5, scoring='neg_mean_squared_error', verbose=0
+                    )
+                else:
+                    base_model = RandomForestRegressor(n_estimators=1000, random_state=42)
 
-            for train_index, test_index in kf.split(temp_data):
-                X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-                y_train, y_test = y.iloc[train_index], y.iloc[test_index]
+            bootstrap_samples = 100  # Number of bootstrap samples
+            for _ in range(bootstrap_samples):
+                # Create a bootstrap sample of the data
+                boot_X, boot_y = resample(X, y, replace=True, random_state=42)
+                # Split the bootstrap sample into train and test sets (or use the whole boot_X for training and X for testing)
+                X_train, X_test, y_train, y_test = train_test_split(boot_X, boot_y, test_size=0.25, random_state=42)
 
+                # Clone the base model to ensure it's fresh for each iteration
                 if model_type == 'linear':
                     X_train_const = sm.add_constant(X_train)
+                    model = base_model(y_train, X_train_const)  # Creating a new model instance for linear
+                    model = model.fit()
                     X_test_const = sm.add_constant(X_test)
-                    model = sm.OLS(y_train, X_train_const).fit()
                     y_pred = model.predict(X_test_const)
-                elif model_type == 'gbm':
-                    model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
-                    model.fit(X_train, y_train)
-                    y_pred = model.predict(X_test)
-                elif model_type == 'svr':
-                    model = SVR(kernel='rbf', C=100, gamma=0.1, epsilon=.1)
-                    model.fit(X_train, y_train)
-                    y_pred = model.predict(X_test)
                 else:
-                    if tune == 'yes':
-                        # Setup the Random Forest model with GridSearchCV
-                        rf = RandomForestRegressor(random_state=42)
-                        model = GridSearchCV(rf, param_grid, cv=5, scoring='neg_mean_squared_error', verbose=1)
-                        model.fit(X_train, y_train)
-                        y_pred = model.best_estimator_.predict(X_test)
-                    else:
-                         continue
-                    model = RandomForestRegressor(n_estimators=1000, random_state=42)
+                    model = clone(base_model)
                     model.fit(X_train, y_train)
-                    y_pred = model.predict(X_test)
-
-                    
-
+                    y_pred = model.predict(X_test)                
 
                 fold_rsquared.append(r2_score(y_test, y_pred))
                 fold_rmse.append(root_mean_squared_error(y_test, y_pred))
