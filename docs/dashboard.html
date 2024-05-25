@@ -81,7 +81,7 @@
                                 <select name="selectedLag" onchange="this.form.submit()">
                                     {% for result in analysis_results %}
                                         <option value="{{ loop.index0 }}" {% if loop.index0 == selected_lag_index %}selected{% endif %}>
-                                            Lag {{ loop.index0 }}
+                                            Lag {{ result.lag }}
                                         </option>
                                     {% endfor %}
                                 </select>
@@ -105,7 +105,7 @@
                             <p>No analysis results available or invalid index selected.</p>
                             {% endif %}
                         </div>
-                    </div>    
+                    </div>                    
                     <div class="card mb-4">
                         <div class="card-header">
                             <i class="fas fa-chart-area me-1"></i>

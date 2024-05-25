@@ -3,15 +3,15 @@ import os
 import pandas as pd
 from flask import Flask, request, render_template, session, redirect, url_for
 from flask_caching import Cache
-from handlers import DataHandler
-from news_api import NewsAPI
-from useconomyapi import USEconomyAPI
-from seekingalpha import SeekingAlphaNewsAPI
-from visualizations import Visualizations
-from cryptopanic import CryptoPanicAPI
-from cryptonewsapi import CryptoNewsAPI
-from coinrankingapi import CryptoDataFetcher
-from sentiment import SentimentAnalyzer
+from modules.handlers import DataHandler
+from modules.news_api import NewsAPI
+from modules.useconomyapi import USEconomyAPI
+from modules.seekingalpha import SeekingAlphaNewsAPI
+from modules.visualizations import Visualizations
+from modules.cryptopanic import CryptoPanicAPI
+from modules.cryptonewsapi import CryptoNewsAPI
+from modules.coinrankingapi import CryptoDataFetcher
+from modules.sentiment import SentimentAnalyzer
 import matplotlib
 import numpy as np
 matplotlib.use('Agg')

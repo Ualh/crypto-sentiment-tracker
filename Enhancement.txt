@@ -1,0 +1,11 @@
+Enhancement
+
+ADA
+LSTM-based recurrent neural network to predict cryptocurrency price trends
+Grid search hyp tune
+10 fold CV
+
+AP 
+caching
+quart ?
+check speed We will check how fast, accurate, and user-friendly it is
