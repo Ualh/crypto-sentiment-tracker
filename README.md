@@ -24,8 +24,13 @@ cd yourpathtothegit
 
 Create and activate a virtual environment to manage dependencies:
 
-python -m venv venv
-source venv/bin/activate # On Windows use venv\Scripts\activate
+```
+python -m venv 
+```
+Activate it (for windows venv/bin/activate for mac) 
+```
+venv\Scripts\activate
+```
 
 Install the required packages:
 
