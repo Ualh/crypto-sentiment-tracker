@@ -14,8 +14,10 @@ CRYPTO-SENTIMENT-TRACKER is a Flask web application that integrates various APIs
 To get started, clone the repository to your local machine:
 
 ```
-git clone https://github.com/yourusername/CRYPTO-SENTIMENT-TRACKER.git
-cd yourpathto/CRYPTO-SENTIMENT-TRACKER
+git clone https://github.com/Ualh/crypto-sentiment-tracker.git
+```
+```
+cd yourpathtothegit
 ```
 
 ### Set Up Python Environment
