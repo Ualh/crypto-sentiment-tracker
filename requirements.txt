@@ -23,3 +23,5 @@ flask
 Flask-Caching
 cachetools
 scikit-learn
+python-dotenv
+pmdarima

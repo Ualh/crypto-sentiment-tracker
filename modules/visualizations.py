@@ -66,12 +66,12 @@ class Visualizations:
         elif from_date == 1:
             # Get data from the last 2 days
             end_date = pd.Timestamp.today()
-            start_date = end_date - pd.Timedelta(days= 20.5)
+            start_date = end_date - pd.Timedelta(days= 1.5)
         elif from_date in [30, 2]:
             data['date'] = data['date'].dt.round('h')
             # Get data from the last 30 days
             end_date = pd.Timestamp.today()
-            start_date = end_date - pd.Timedelta(days=52)
+            start_date = end_date - pd.Timedelta(days=31)
         else:
             raise ValueError("from_date should be either 0 (custom range), 1 (daily), or 30 (monthly).")
 

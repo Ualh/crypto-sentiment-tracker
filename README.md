@@ -60,13 +60,41 @@ This will start the server on http://127.0.0.1:5000/. Navigate to this URL in a 
 - **Extra Features:** Access to additional analytical tools and models.
 
 ## Testing
-Execute the following command to run tests:
+Be sure to change False to True in `app.py`
 
 ```
-python -m unittest discover
+app.config['TESTING'] = False  # True for testing, False for production
+```
+Be sure to implement the data you want in there :
+
+```
+@cache.cached(timeout=86400, key_prefix=make_news_cache_key)
+def fetch_news(days_back):
+    print('no cache')
+    if app.config['TESTING']:
+        # Load mock news data based on 'days_back'
+        if days_back == 2:
+            return pd.read_csv("data/2024-04-05_30d_news.csv")
+        elif days_back == 1:
+            return pd.read_csv("data/2024-04-05_24h_news.csv")
+        else:
+            raise ValueError("Invalid 'days_back' value. It should be either 1 (daily) or 30 (monthly).")
+   
 ```
 
-Ensure all tests pass to confirm that the setup was successful.
+Go into the visualisation class, `average_sentiment_per_time` function and change the days so that it correspond to the days back from today, and the date the data was fetched (in the csv)
+
+```
+        elif from_date == 1:
+            # Get data from the last 2 days
+            end_date = pd.Timestamp.today()
+            start_date = end_date - pd.Timedelta(days= 1.5)
+        elif from_date in [30, 2]:
+            data['date'] = data['date'].dt.round('h')
+            # Get data from the last 30 days
+            end_date = pd.Timestamp.today()
+            start_date = end_date - pd.Timedelta(days=31)
+```
 
 ## Troubleshooting
 If you encounter any issues:
