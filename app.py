@@ -24,7 +24,7 @@ app = Flask(__name__, template_folder='docs', static_folder='static')
 # Configure caching, for example, using simple memory cache
 app.config["CACHE_TYPE"] = "SimpleCache"
 app.config["CACHE_DEFAULT_TIMEOUT"] = 86400  # 24h Cache timeout in seconds
-app.config['TESTING'] = True  # True for testing, False for production
+app.config['TESTING'] = False  # True for testing, False for production
 
 app.secret_key = os.urandom(24)  # Or a fixed secret key
 
