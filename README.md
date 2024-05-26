@@ -14,16 +14,23 @@ CRYPTO-SENTIMENT-TRACKER is a Flask web application that integrates various APIs
 To get started, clone the repository to your local machine:
 
 ```
-git clone https://github.com/yourusername/CRYPTO-SENTIMENT-TRACKER.git
-cd yourpathto/CRYPTO-SENTIMENT-TRACKER
+git clone https://github.com/Ualh/crypto-sentiment-tracker.git
+```
+```
+cd yourpathtothegit
 ```
 
 ### Set Up Python Environment
 
 Create and activate a virtual environment to manage dependencies:
 
-python -m venv venv
-source venv/bin/activate # On Windows use venv\Scripts\activate
+```
+python -m venv 
+```
+Activate it (for windows venv/bin/activate for mac) 
+```
+venv\Scripts\activate
+```
 
 Install the required packages:
 
