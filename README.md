@@ -103,6 +103,12 @@ Go into the visualisation class, `average_sentiment_per_time` function and chang
             start_date = end_date - pd.Timedelta(days=31)
 ```
 
+## Adjustements
+
+- Selecting number of coins to aggergate based ont the category : 
+        Go to `modules`> `coinrankingapi.py` > line 223
+        change `default_limit=50` to 2 or any number of coin you want to aggregate.
+
 ## Troubleshooting
 If you encounter any issues:
 - Check that all prerequisites are properly installed.

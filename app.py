@@ -220,7 +220,7 @@ def perform_sentiment_analysis(news_df, days_back, category):
             time_period = '30d'
         else:
             time_period = '24h'
-        fetcher = CryptoDataFetcher(api_key, default_tags=category, default_limit=2, default_time_period=f"{time_period}")
+        fetcher = CryptoDataFetcher(api_key, default_tags=category, default_limit=50, default_time_period=f"{time_period}")
         price_data = fetcher.fetch_all_history()
 
         # Initialize SentimentAnalyzer
